@@ -1,0 +1,7 @@
+apiVersion: game.laputacloud.co/v1alpha1
+kind: SevenDays
+metadata:
+  name: sevendays-sample
+spec:
+  # Add fields here
+  foo: bar
