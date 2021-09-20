@@ -9,7 +9,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 package component
 
 import (
-	"github.com/laputacloudco/minecraft-operator/api/v1alpha2"
+	"github.com/laputacloudco/sevendays-operator/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,15 +31,17 @@ func NeedsUpdateConfigMap(want, have v1.ConfigMap) bool {
 }
 
 // GenerateConfigMap creates a configmap from a Minecraft server config struct
-func GenerateConfigMap(mc v1alpha2.Minecraft) v1.ConfigMap {
+func GenerateConfigMap(sd v1alpha1.SevenDays) v1.ConfigMap {
 	cm := v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: make(map[string]string),
-			Labels:      standardLabels(mc),
-			Name:        mc.Name,
-			Namespace:   mc.Namespace,
+			Labels:      standardLabels(sd),
+			Name:        sd.Name,
+			Namespace:   sd.Namespace,
 		},
-		Data: mc.Spec.Config,
+		Data: map[string]string{
+			"serverconfig.xml": sd.Spec.ServerConfigXML,
+		},
 	}
 	return cm
 }
@@ -51,7 +53,7 @@ func IndexConfigMap(o client.Object) []string {
 	if owner == nil {
 		return nil
 	}
-	if owner.APIVersion != v1alpha2.GroupVersion.String() || owner.Kind != "Minecraft" {
+	if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != "SevenDays" {
 		return nil
 	}
 	return []string{owner.Name}

@@ -1,8 +1,8 @@
 domain: laputacloud.co
 layout:
 - go.kubebuilder.io/v3
-projectName: k8s-7dtd
-repo: github.com/laputacloudco/k8s-7dtd
+projectName: sevendays-operator
+repo: github.com/laputacloudco/sevendays-operator
 resources:
 - api:
     crdVersion: v1
@@ -11,6 +11,6 @@ resources:
   domain: laputacloud.co
   group: game
   kind: SevenDays
-  path: github.com/laputacloudco/k8s-7dtd/api/v1alpha1
+  path: github.com/laputacloudco/sevendays-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

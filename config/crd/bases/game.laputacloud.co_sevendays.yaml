@@ -1,0 +1,89 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: sevendays.game.laputacloud.co
+spec:
+  group: game.laputacloud.co
+  names:
+    kind: SevenDays
+    listKind: SevenDaysList
+    plural: sevendays
+    singular: sevendays
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .status.address
+      name: Address
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: SevenDays is the Schema for the sevendays API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: SevenDaysSpec defines the desired state of SevenDays
+            properties:
+              serve:
+                description: Serve tells the controller to run or stop this server.
+                type: boolean
+              serverconfig.xml:
+                description: ServerConfigXML is a 7 Days config file literal.
+                type: string
+            type: object
+          status:
+            description: SevenDaysStatus defines the observed state of SevenDays
+            properties:
+              address:
+                description: Address the public server address
+                type: string
+              cost:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Cost is the running cost of the server
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              status:
+                description: Status indicates the Server Status
+                enum:
+                - Creating
+                - Destroying
+                - Running
+                - Starting
+                - Stopped
+                - Stopping
+                - Unknown
+                - Updating
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

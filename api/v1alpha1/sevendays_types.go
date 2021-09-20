@@ -9,6 +9,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -49,14 +50,14 @@ type SevenDaysStatus struct {
 	Status ServerStatus `json:"status,omitempty"`
 	// Address the public server address
 	Address string `json:"address,omitempty"`
-	// Cost is the running cost the servec
-	Cost float64 `json:"cost,omitempty"`
+	// Cost is the running cost of the server
+	Cost resource.Quantity `json:"cost,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
-//+kubebuilder:printcolumn:name="Address",type=string,JSONPath=`.status.address
+//+kubebuilder:printcolumn:name="Address",type=string,JSONPath=`.status.address`
 
 // SevenDays is the Schema for the sevendays API
 type SevenDays struct {

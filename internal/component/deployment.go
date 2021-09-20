@@ -9,10 +9,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 package component
 
 import (
-	"github.com/laputacloudco/minecraft-operator/api/v1alpha2"
+	"github.com/laputacloudco/sevendays-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -20,36 +19,27 @@ import (
 // NeedsUpdateDeployment returns if the passed Services are out of sync
 func NeedsUpdateDeployment(want, have appsv1.Deployment) bool {
 	return *want.Spec.Replicas != *have.Spec.Replicas ||
-		want.Annotations["configmap-revision"] != have.Annotations["configmap-revision"] ||
-		!want.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu().Equal(*have.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu()) ||
-		!want.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().Equal(*have.Spec.Template.Spec.Containers[0].Resources.Limits.Memory()) ||
-		want.Spec.Template.Spec.Containers[0].StartupProbe.InitialDelaySeconds != have.Spec.Template.Spec.Containers[0].StartupProbe.InitialDelaySeconds ||
-		want.Spec.Template.Spec.Containers[0].StartupProbe.PeriodSeconds != have.Spec.Template.Spec.Containers[0].StartupProbe.PeriodSeconds ||
-		want.Spec.Template.Spec.Containers[0].LivenessProbe.InitialDelaySeconds != have.Spec.Template.Spec.Containers[0].LivenessProbe.InitialDelaySeconds ||
-		want.Spec.Template.Spec.Containers[0].LivenessProbe.PeriodSeconds != have.Spec.Template.Spec.Containers[0].LivenessProbe.PeriodSeconds
+		want.Annotations["configmap-revision"] != have.Annotations["configmap-revision"]
 }
 
 // GenerateDeployment creates a Minecraft server deployment
-func GenerateDeployment(mc v1alpha2.Minecraft) (appsv1.Deployment, error) {
+func GenerateDeployment(sd v1alpha1.SevenDays) (appsv1.Deployment, error) {
 	r := int32(0)
-	if mc.Spec.Serve {
+	if sd.Spec.Serve {
 		r = 1
 	}
-	limitCPU, _ := resource.ParseQuantity(mc.Spec.LimitCPU)
-	limitMem, _ := resource.ParseQuantity(mc.Spec.LimitMemory)
-	requestCPU, _ := resource.ParseQuantity(mc.Spec.RequestCPU)
-	requestMem, _ := resource.ParseQuantity(mc.Spec.RequestMemory)
-	return appsv1.Deployment{
+
+	deploy := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: make(map[string]string),
-			Labels:      standardLabels(mc),
-			Name:        mc.Name,
-			Namespace:   mc.Namespace,
+			Labels:      standardLabels(sd),
+			Name:        sd.Name,
+			Namespace:   sd.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &r,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: standardLabels(mc),
+				MatchLabels: standardLabels(sd),
 			},
 			Strategy: appsv1.DeploymentStrategy{
 				Type: appsv1.RecreateDeploymentStrategyType,
@@ -57,92 +47,102 @@ func GenerateDeployment(mc v1alpha2.Minecraft) (appsv1.Deployment, error) {
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: make(map[string]string),
-					Labels:      standardLabels(mc),
-					Name:        mc.Name,
+					Labels:      standardLabels(sd),
+					Name:        sd.Name,
 				},
 				Spec: corev1.PodSpec{
+					Affinity: &corev1.Affinity{
+						NodeAffinity: &corev1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+								NodeSelectorTerms: []corev1.NodeSelectorTerm{
+									{
+										MatchExpressions: []corev1.NodeSelectorRequirement{
+											{
+												Key:      "agentpool",
+												Operator: corev1.NodeSelectorOpIn,
+												Values: []string{
+													"alpha",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
-							Name:            mc.Name,
-							Image:           mc.Spec.Image,
+							Name:            "server",
+							Image:           "docker.io/didstopia/7dtd-server",
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Ports: []corev1.ContainerPort{
 								{
-									Name:          "minecraft",
-									ContainerPort: 25565,
+									Name:          "26900tcp",
+									ContainerPort: 26900,
+									Protocol:      corev1.ProtocolTCP,
+								},
+								{
+									Name:          "26900udp",
+									ContainerPort: 26900,
+									Protocol:      corev1.ProtocolUDP,
+								},
+								{
+									Name:          "26901udp",
+									ContainerPort: 26901,
+									Protocol:      corev1.ProtocolUDP,
+								},
+								{
+									Name:          "26902udp",
+									ContainerPort: 26902,
+									Protocol:      corev1.ProtocolUDP,
 								},
 							},
 							Env: []corev1.EnvVar{
 								{
-									Name:  "EULA",
-									Value: "TRUE",
+									Name:  "SEVEN_DAYS_TO_DIE_TELNET_PORT",
+									Value: "8081",
 								},
-							},
-							EnvFrom: []corev1.EnvFromSource{
 								{
-									ConfigMapRef: &corev1.ConfigMapEnvSource{
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: mc.Name,
-										},
-									},
+									Name:  "SEVEN_DAYS_TO_DIE_TELNET_PASSWORD",
+									Value: "password",
 								},
-							},
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    limitCPU,
-									corev1.ResourceMemory: limitMem,
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    requestCPU,
-									corev1.ResourceMemory: requestMem,
-								},
-							},
-							StartupProbe: &corev1.Probe{
-								Handler: corev1.Handler{
-									Exec: &corev1.ExecAction{
-										Command: []string{
-											"mc-monitor",
-											"status",
-											"--host",
-											"localhost",
-										},
-									},
-								},
-								FailureThreshold:    3,
-								InitialDelaySeconds: mc.Spec.ProbeDelay,
-								PeriodSeconds:       mc.Spec.ProbePeriod,
-								SuccessThreshold:    1,
-							},
-							LivenessProbe: &corev1.Probe{
-								Handler: corev1.Handler{
-									Exec: &corev1.ExecAction{
-										Command: []string{
-											"mc-monitor",
-											"status",
-											"--host",
-											"localhost",
-										},
-									},
-								},
-								FailureThreshold:    3,
-								InitialDelaySeconds: mc.Spec.ProbeDelay,
-								PeriodSeconds:       mc.Spec.ProbePeriod,
-								SuccessThreshold:    1,
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "data",
-									MountPath: "/data",
+									Name:      "app",
+									MountPath: "/app/.local/share/7DaysToDie",
+								},
+								{
+									Name:      "steamcmd",
+									MountPath: "/steamcmd/7dtd",
 								},
 							},
 						},
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: "data",
+							Name: "app",
 							VolumeSource: corev1.VolumeSource{
 								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: mc.Name,
+									ClaimName: sd.Name + "-app",
+								},
+							},
+						},
+						{
+							Name: "steamcmd",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: sd.Name + "-steamcmd",
+								},
+							},
+						},
+						{
+							Name: "serverconfig",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: sd.Name,
+									},
 								},
 							},
 						},
@@ -150,7 +150,38 @@ func GenerateDeployment(mc v1alpha2.Minecraft) (appsv1.Deployment, error) {
 				},
 			},
 		},
-	}, nil
+	}
+
+	if sd.Spec.ServerConfigXML == "" {
+		return deploy, nil
+	}
+
+	// if the serverconfig xml is set, we need to include an init container
+	// to copy the contents to a writeable path
+	deploy.Spec.Template.Spec.InitContainers = []corev1.Container{
+		{
+			Name:  "serverconfig",
+			Image: "docker.io/busybox:latest",
+			Command: []string{
+				"sh",
+				"-c",
+				"cp /serverconfig.xml /app/.local/share/7DaysToDie/serverconfig.xml",
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "app",
+					MountPath: "/app/.local/share/7DaysToDie",
+				},
+				{
+					Name:      "serverconfig",
+					MountPath: "/serverconfig.xml",
+					SubPath:   "serverconfig.xml",
+				},
+			},
+		},
+	}
+
+	return deploy, nil
 }
 
 // IndexDeployment indexer func for controller-runtime
@@ -160,7 +191,7 @@ func IndexDeployment(o client.Object) []string {
 	if owner == nil {
 		return nil
 	}
-	if owner.APIVersion != v1alpha2.GroupVersion.String() || owner.Kind != "Minecraft" {
+	if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != "SevenDays" {
 		return nil
 	}
 	return []string{owner.Name}

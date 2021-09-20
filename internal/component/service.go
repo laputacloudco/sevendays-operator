@@ -11,34 +11,70 @@ package component
 import (
 	"errors"
 
-	"github.com/laputacloudco/minecraft-operator/api/v1alpha2"
-	"github.com/laputacloudco/minecraft-operator/internal/sort"
+	"github.com/laputacloudco/sevendays-operator/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GenerateService creates a Service for the Minecraft server.
-func GenerateService(mc v1alpha2.Minecraft) v1.Service {
+// GenerateTCPService creates a TCP Service for the SevenDays server.
+func GenerateTCPService(sd v1alpha1.SevenDays) v1.Service {
 	return v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: make(map[string]string),
-			Labels:      standardLabels(mc),
-			Name:        mc.Name,
-			Namespace:   mc.Namespace,
+			Labels:      standardLabels(sd),
+			Name:        sd.Name + "-tcp",
+			Namespace:   sd.Namespace,
 		},
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name:       "minecraft",
+					Name:       "26900tcp",
 					Protocol:   v1.ProtocolTCP,
-					Port:       25565,
-					TargetPort: intstr.FromString("minecraft"),
+					Port:       26900,
+					TargetPort: intstr.FromString("26900tcp"),
 				},
 			},
-			Selector: standardLabels(mc),
-			Type:     v1.ServiceType(mc.Spec.ServiceType),
+			Selector: standardLabels(sd),
+			Type:     v1.ServiceTypeLoadBalancer,
+		},
+	}
+}
+
+// GenerateUDPService creates a UDP Service for the SevenDays server.
+func GenerateUDPService(sd v1alpha1.SevenDays, lbip string) v1.Service {
+	return v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: make(map[string]string),
+			Labels:      standardLabels(sd),
+			Name:        sd.Name + "-udp",
+			Namespace:   sd.Namespace,
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:       "26900udp",
+					Protocol:   v1.ProtocolUDP,
+					Port:       26900,
+					TargetPort: intstr.FromString("26900udp"),
+				},
+				{
+					Name:       "26901udp",
+					Protocol:   v1.ProtocolUDP,
+					Port:       26901,
+					TargetPort: intstr.FromString("26901udp"),
+				},
+				{
+					Name:       "26902udp",
+					Protocol:   v1.ProtocolUDP,
+					Port:       26902,
+					TargetPort: intstr.FromString("26902udp"),
+				},
+			},
+			Selector:       standardLabels(sd),
+			Type:           v1.ServiceTypeLoadBalancer,
+			LoadBalancerIP: lbip,
 		},
 	}
 }
@@ -49,9 +85,9 @@ func GenerateService(mc v1alpha2.Minecraft) v1.Service {
 // If there are Services of type LoadBalancer but they do not (yet?) have IP
 // addresses assigned, return an error to indicate that this should be aborted
 // and tried again later.
-func ExtractExistingLoadbalancerIP(extant []v1.Service) (string, error) {
+func ExtractExistingLoadbalancerIP(services []v1.Service) (string, error) {
 	foundLB := false
-	for _, svc := range extant {
+	for _, svc := range services {
 		if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
 			continue
 		}
@@ -67,23 +103,6 @@ func ExtractExistingLoadbalancerIP(extant []v1.Service) (string, error) {
 		return "", errors.New("loadbalancers exist but do not yet have IPs")
 	}
 	return "", nil
-
-}
-
-// AssignServicePort walks the existing service definitions and assigns the
-// first available port with the specified inclusive range, or -1 if the range
-// is fully populated.
-func AssignServicePort(extant []v1.Service, minPort, maxPort int32) int32 {
-	used := sort.Int32Slice{}
-	for _, svc := range extant {
-		for _, p := range svc.Spec.Ports {
-			if p.Name == "minecraft" {
-				used = append(used, p.Port)
-			}
-		}
-	}
-	used.Sort()
-	return sort.FirstUnusedInRange(used, minPort, maxPort)
 }
 
 // IndexService owner indexer func for controller-runtime.
@@ -93,7 +112,7 @@ func IndexService(o client.Object) []string {
 	if owner == nil {
 		return nil
 	}
-	if owner.APIVersion != v1alpha2.GroupVersion.String() || owner.Kind != "Minecraft" {
+	if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != "SevenDays" {
 		return nil
 	}
 	return []string{owner.Name}

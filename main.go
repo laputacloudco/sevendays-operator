@@ -19,8 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	gamev1alpha1 "github.com/laputacloudco/k8s-7dtd/api/v1alpha1"
-	"github.com/laputacloudco/k8s-7dtd/controllers"
+	gamev1alpha1 "github.com/laputacloudco/sevendays-operator/api/v1alpha1"
+	"github.com/laputacloudco/sevendays-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -67,8 +67,10 @@ func main() {
 	}
 
 	if err = (&controllers.SevenDaysReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Log:      ctrl.Log,
+		Recorder: mgr.GetEventRecorderFor("SevenDays"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SevenDays")
 		os.Exit(1)
